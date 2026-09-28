@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+artifacts/*.joblib
+notebooks/alerts_top25.csv
+notebooks/transactions_scored_full.csv
+notebooks/dashboard.html
+.vscode/
+.DS_Store
+Thumbs.db

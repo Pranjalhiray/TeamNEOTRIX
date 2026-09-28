@@ -1,0 +1,85 @@
+"""Train all models once and cache results to artifacts/bundle.joblib."""
+import sys
+import time
+from pathlib import Path
+
+import joblib
+import networkx as nx
+
+sys.path.insert(0, str(Path(__file__).parent))
+import pipeline as pl
+
+DATA_DIR = Path(__file__).parent.parent / "data"
+ARTIFACT_PATH = Path(__file__).parent.parent / "artifacts" / "bundle.joblib"
+
+
+def main():
+    t0 = time.time()
+    print("[1/6] Loading data (DuckDB ingestion layer) ...")
+    tables = pl.load_data_duckdb(DATA_DIR)
+    print("      sample network<->blockchain correlated view (SQL JOIN):")
+    print(tables["correlated_sample"].head(3).to_string(index=False))
+
+    print("[2/6] GeoIP-enriching transactions (offline geoip2fast db) ...")
+    try:
+        tables["transactions"] = pl.enrich_geoip(tables["transactions"])
+    except ImportError:
+        print("  geoip2fast not installed - skipping enrichment "
+              "(run: pip install geoip2fast). App will still work, just "
+              "without the 'real_geo_country' column.")
+
+    print("[3/6] Building graphs ...")
+    tx_graph = pl.build_tx_graph(tables["labels"], tables["tx_edges"])
+
+    print("[4/6] Entity clustering ...")
+    clustering = pl.cluster_entities(tables["wallets"], tables["tx_inputs"],
+                                      tables["tx_outputs"], tables["labels"])
+    print("      ", clustering["metrics"])
+
+    print("[5/6] Anomaly detection + pattern classification + risk propagation ...")
+    anomaly = pl.detect_anomalies(tables["features"])
+    print("      anomaly:", anomaly["metrics"])
+
+    pattern = pl.classify_patterns(anomaly["features"], tx_graph)
+    chains = pl.find_peeling_chains(tx_graph, pattern["features"])
+    print(f"      peeling chains detected: {len(chains)}")
+
+    risk = pl.propagate_risk(tx_graph, tables["tx_inputs"], tables["wallets"],
+                              tables["seed_illicit"], tables["labels"])
+    print("      risk propagation:", risk["metrics"])
+
+    print("[6/6] Fusing alerts + precomputing SHAP explanations for top alerts ...")
+    fused = pl.fuse_alerts(anomaly["features"], pattern["features"], risk["tx_risk"], chains)
+
+    from sklearn.metrics import roc_auc_score
+    ensemble_auc = roc_auc_score(fused["is_illicit"], fused["risk_score"])
+    print("      ensemble ROC-AUC:", ensemble_auc)
+
+    top_alert_txids = fused.nlargest(500, "risk_score")["txid"].tolist()
+    shap_global = pl.shap_summary(pattern, top_alert_txids)
+    print("      SHAP top global features (top-500 alerts):")
+    print(shap_global.head(8).to_string())
+
+    bundle = {
+        "tables": tables,
+        "tx_graph": tx_graph,
+        "clustering": clustering,
+        "anomaly": anomaly,
+        "pattern": pattern,
+        "chains": chains,
+        "risk": risk,
+        "fused": fused,
+        "ensemble_auc": ensemble_auc,
+        "shap_global": shap_global,
+        "top_alert_txids": top_alert_txids,
+        "build_seconds": time.time() - t0,
+    }
+
+    ARTIFACT_PATH.parent.mkdir(exist_ok=True, parents=True)
+    joblib.dump(bundle, ARTIFACT_PATH, compress=3)
+    print(f"\nSaved {ARTIFACT_PATH}  ({ARTIFACT_PATH.stat().st_size/1e6:.1f} MB, "
+          f"built in {bundle['build_seconds']:.1f}s)")
+
+
+if __name__ == "__main__":
+    main()
