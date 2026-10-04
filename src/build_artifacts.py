@@ -5,6 +5,8 @@ from pathlib import Path
 
 import joblib
 import networkx as nx
+import pandas as pd
+import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent))
 import pipeline as pl
@@ -36,19 +38,46 @@ def main():
                                       tables["tx_outputs"], tables["labels"])
     print("      ", clustering["metrics"])
 
-    print("[5/6] Anomaly detection + pattern classification + risk propagation ...")
-    anomaly = pl.detect_anomalies(tables["features"])
-    print("      anomaly:", anomaly["metrics"])
+    print("[5/6] Risk propagation (PageRank from seed illicit wallets) ...")
+    risk = pl.propagate_risk(tx_graph, tables["tx_inputs"], tables["wallets"],
+                              tables["seed_illicit"], tables["labels"],
+                              direction="both", alpha=0.85)
+    print("      risk propagation:", risk["metrics"])
 
-    pattern = pl.classify_patterns(anomaly["features"], tx_graph)
+    print("[6/6] Pattern classification + anomaly detection (supervised ensemble) + fuse alerts ...")
+    # First classify patterns to add graph structural features to features dataframe
+    print("  Classifying patterns (RandomForest + graph features)...")
+    pattern = pl.classify_patterns(tables["features"], tx_graph)
     chains = pl.find_peeling_chains(tx_graph, pattern["features"])
     print(f"      peeling chains detected: {len(chains)}")
 
-    risk = pl.propagate_risk(tx_graph, tables["tx_inputs"], tables["wallets"],
-                              tables["seed_illicit"], tables["labels"])
-    print("      risk propagation:", risk["metrics"])
+    # Then run supervised anomaly detection with enriched features
+    print("  Attempting supervised anomaly detection (XGBoost + LightGBM + RF)...")
+    try:
+        # Prepare embeddings DataFrame
+        addr_emb_df = None
+        if clustering.get("embeddings") is not None:
+            addr_emb_df = pd.DataFrame(
+                clustering["embeddings"],
+                columns=[f"emb_{i}" for i in range(clustering["embeddings"].shape[1])],
+                index=tables["wallets"]["address"].tolist()
+            ).reset_index().rename(columns={"index": "address"})
 
-    print("[6/6] Fusing alerts + precomputing SHAP explanations for top alerts ...")
+        anomaly = pl.detect_anomalies_supervised(
+            pattern["features"],
+            embeddings=clustering.get("embeddings"),
+            addr_list=tables["wallets"]["address"].tolist(),
+            addr_emb_df=addr_emb_df,
+            best_pr=risk.get("best_pr") if "best_pr" in risk else dict(zip(risk["tx_risk"]["txid"], risk["tx_risk"]["propagated_risk"])),
+            tx_inputs=tables["tx_inputs"]
+        )
+        print(f"  supervised anomaly: ensemble AUC={anomaly.get('ensemble_roc_auc', 0):.3f}")
+    except Exception as e:
+        print(f"  supervised anomaly failed ({e}), falling back to Isolation Forest")
+        anomaly = pl.detect_anomalies(pattern["features"])
+        print("      anomaly:", anomaly["metrics"])
+
+    print("[7/7] Fusing alerts + precomputing SHAP explanations for top alerts ...")
     fused = pl.fuse_alerts(anomaly["features"], pattern["features"], risk["tx_risk"], chains)
 
     from sklearn.metrics import roc_auc_score
@@ -59,6 +88,10 @@ def main():
     shap_global = pl.shap_summary(pattern, top_alert_txids)
     print("      SHAP top global features (top-500 alerts):")
     print(shap_global.head(8).to_string())
+
+    # Store the best_pr in risk for API access
+    if "best_pr" not in risk:
+        risk["best_pr"] = dict(zip(risk["tx_risk"]["txid"], risk["tx_risk"]["propagated_risk"]))
 
     bundle = {
         "tables": tables,

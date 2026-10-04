@@ -6,6 +6,13 @@ artifacts/*.joblib
 notebooks/alerts_top25.csv
 notebooks/transactions_scored_full.csv
 notebooks/dashboard.html
-.vscode/
+.vscode/*
+!.vscode/
+!.vscode/tasks.json
+frontend/node_modules/
+frontend/dist/
+.env
+.env.*
+!.env.example
 .DS_Store
 Thumbs.db

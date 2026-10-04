@@ -1,0 +1,43 @@
+{
+  "name": "Bitcoin Transaction Forensics",
+  "short_name": "BTC Forensics",
+  "description": "AI-powered Bitcoin transaction monitoring and forensics dashboard",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#081219",
+  "theme_color": "#081219",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "developer", "productivity"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Overview",
+      "short_name": "Overview",
+      "description": "View dashboard overview",
+      "url": "/",
+      "icons": [{ "src": "/favicon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Alerts",
+      "short_name": "Alerts",
+      "description": "View ranked alerts",
+      "url": "/alerts",
+      "icons": [{ "src": "/favicon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Investigate",
+      "short_name": "Investigate",
+      "description": "Investigate transactions and wallets",
+      "url": "/investigate",
+      "icons": [{ "src": "/favicon.svg", "sizes": "192x192" }]
+    }
+  ]
+}

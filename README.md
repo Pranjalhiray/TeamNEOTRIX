@@ -1,122 +1,160 @@
 # Bitcoin Transaction Forensics
 
-An offline AI/ML system for monitoring Bitcoin transaction traffic. It ingests bulk transaction and network metadata, links IP addresses, wallets and transactions into a single graph, and produces ranked, explainable alerts through an interactive dashboard.
+An offline-first investigation workspace for Bitcoin transaction and network metadata. The project combines a local machine-learning pipeline with an interactive dashboard for reviewing transaction risk, wallet clusters, network connections, and explainable alerts.
 
-Built for Smart India Hackathon 2026, Problem Statement 5 (National Technical Research Organisation, Cryptocurrency theme). The system runs entirely on a local Linux machine with no internet access at run time.
+Developed for **Smart India Hackathon 2026 — Problem Statement 5**, National Technical Research Organisation (cryptocurrency theme).
 
-## Features
+> **Offline operation:** The local dashboard, API, dataset, and model run on your computer and make no external network requests at runtime. Internet access is needed once to install dependencies. Keep the local API running while you investigate. A Railway deployment is a hosted demo and requires an internet connection; use the local launcher for an offline presentation.
 
-- **Entity clustering.** Groups wallets likely controlled by one entity using the common-input-ownership heuristic combined with graph embeddings.
-- **Anomaly detection.** Flags statistically unusual transactions with an Isolation Forest over engineered features.
-- **Peeling-chain and mixing detection.** A RandomForest classifier and a graph-based chain walker detect laundering patterns such as peeling chains and CoinJoin-style transactions.
-- **Risk scoring.** Personalized PageRank propagates risk from a small set of known illicit wallets across the transaction graph.
-- **Explainable alerts.** Every alert has a confidence score, a plain-English reason and a per-transaction SHAP attribution.
-- **Link analysis.** Interactive, draggable transaction graphs, fully offline.
+## What it does
 
-## Architecture
+- **Ranked alerts:** combines model signals and graph risk into an ordered list of investigative leads, with evidence and CSV export.
+- **Transaction investigation:** inspect transactions and wallets, review risk factors, and follow observed input/output relationships.
+- **Network analysis:** explore risk-ranked transaction and wallet networks, expand local connections, and export graph views.
+- **Anomaly and pattern analysis:** compare supervised ensemble scores with Isolation Forest results, and inspect mixing and peeling-chain signals.
+- **Entity clustering:** group related wallets using common-input heuristics, graph embeddings, and K-Means.
+- **Local dataset ingestion:** analyze CSV, JSON, or XML files with field normalization, optional local GeoIP enrichment, and per-browser upload sessions.
+- **Offline dashboard shell:** the production service worker caches all built pages and assets on first launch. It can reopen the interface without internet; live analysis uses the local API.
+
+Risk and ownership heuristics are investigative signals, not proof of wrongdoing or control.
+
+## How it works
 
 ```mermaid
 flowchart LR
-    A[CSV / JSON data] --> B[DuckDB ingestion]
-    B --> C[Graph build<br/>NetworkX + GeoIP]
-    C --> D[ML models<br/>clustering, anomaly,<br/>pattern, risk]
-    D --> E[Fusion + SHAP]
-    E --> F[(bundle.joblib)]
-    F --> G[Streamlit dashboard]
+    A[Included dataset or local upload] --> B[Normalize and validate]
+    B --> C[Transaction and wallet graphs]
+    C --> D[Local ML models]
+    D --> E[Risk ranking and explanations]
+    E --> F[FastAPI on localhost]
+    F --> G[React investigation dashboard]
 ```
 
-Models are trained once by `src/build_artifacts.py` and cached to `artifacts/bundle.joblib`. The dashboard loads that file at startup, so launching it is fast and needs no retraining.
+The pipeline writes its generated model bundle to `artifacts/bundle.joblib`. That file is a local build artifact and is intentionally ignored by Git. If it is missing, it can be regenerated from the included synthetic dataset after installing the project dependencies.
 
-## Tech stack
+## Technology
 
-| Layer            | Tools                                                                                       |
-| ---------------- | ------------------------------------------------------------------------------------------- |
-| Ingestion        | DuckDB, pandas                                                                              |
-| Graph            | NetworkX                                                                                    |
-| GeoIP            | geoip2fast (bundled offline database)                                                       |
-| Machine learning | scikit-learn (Isolation Forest, RandomForest, K-Means, TruncatedSVD), Personalized PageRank |
-| Explainability   | SHAP                                                                                        |
-| Dashboard        | Streamlit, Plotly, Pyvis                                                                    |
+| Area | Main tools |
+| --- | --- |
+| Dashboard | React, TypeScript, Vite, Tailwind CSS |
+| API | Python, FastAPI, Uvicorn |
+| Data processing | pandas, NumPy, DuckDB |
+| Graph analysis | NetworkX, Cytoscape.js |
+| Machine learning | scikit-learn, XGBoost, LightGBM |
+| Explainability | SHAP |
 
-## Results
+## Quick start — Windows and VS Code
 
-Evaluated on the included synthetic dataset against its ground-truth labels.
+### Requirements
 
-| Task                    | Method                                  | Result              |
-| ----------------------- | --------------------------------------- | ------------------- |
-| Entity clustering       | Union-Find + SVD embedding + K-Means    | NMI 0.70            |
-| Anomaly detection       | Isolation Forest                        | ROC-AUC 0.77        |
-| Mixing detection        | RandomForest                            | F1 1.00             |
-| Peeling-chain detection | RandomForest + chain walker             | F1 0.52             |
-| Risk propagation        | Personalized PageRank (46 seed wallets) | Wallet ROC-AUC 0.53 |
-| Fused risk score        | Weighted ensemble                       | ROC-AUC 0.75        |
+- Windows 10 or newer
+- Python 3.10 or newer (Python 3.11 recommended)
+- Node.js 22.12 or newer and npm
+- Internet access for the first dependency installation only
 
-Peeling chains and risk propagation are the weakest tasks. A single peeling hop resembles an ordinary payment, and 46 seed wallets carry limited signal. The fused score compensates by combining all signals. See [WRITEUP.md](WRITEUP.md) for the methodology and limitations.
-
-## Getting started
-
-Requires Python 3.10 or newer. Internet access is needed only for the one-time dependency install.
-
-### Linux
-
-```bash
-git clone https://github.com/<your-username>/<your-repo>.git
-cd <your-repo>
-./setup.sh
-./run.sh
-```
-
-### Windows (PowerShell)
+Open PowerShell in VS Code and run:
 
 ```powershell
+git clone https://github.com/Pranjalhiray/AI-Powered-Monitoring-Analysis-of-Bitcoin-Transaction-Traffic.git
+cd AI-Powered-Monitoring-Analysis-of-Bitcoin-Transaction-Traffic
+
 python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python src\build_artifacts.py
-streamlit run app.py
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+Set-Location frontend
+npm ci
+npm run build
+Set-Location ..
+
+.\.venv\Scripts\python.exe src\build_artifacts.py
+.\run_local.ps1
 ```
 
-The dashboard opens at `http://localhost:8501`.
+Open the local address printed in the terminal (usually `http://127.0.0.1:8000`). Leave the terminal running while using the dashboard. If `artifacts/bundle.joblib` already exists, you can skip the model build command.
+
+To use the VS Code task instead, open **Terminal → Run Task… → Run dashboard locally** after setup. For frontend development with hot reload, run `.\run_dev.ps1` from the project root. The development server is intended for editing; use `run_local.ps1` for the production build and service-worker offline cache.
+
+## Linux
+
+```bash
+git clone https://github.com/Pranjalhiray/AI-Powered-Monitoring-Analysis-of-Bitcoin-Transaction-Traffic.git
+cd AI-Powered-Monitoring-Analysis-of-Bitcoin-Transaction-Traffic
+bash setup.sh
+bash run.sh
+```
+
+Open `http://127.0.0.1:8000`. `setup.sh` installs dependencies, builds the frontend, and creates the model bundle. Run `bash run.sh` for later launches; it does not reinstall packages or retrain existing models.
+
+## Offline use
+
+1. Complete the one-time setup above while dependencies can be installed.
+2. Launch with `run_local.ps1` on Windows or `bash run.sh` on Linux.
+3. Open the dashboard once and allow the service worker to cache the built interface.
+4. Disconnect from the internet if needed. Keep the local dashboard/API process running for analysis.
+
+The static interface and previously loaded reference API responses can be served from the browser cache. Uploads and live analysis still require the local API process. A fresh clone does not contain Python packages, `frontend/node_modules`, the built frontend, or `artifacts/bundle.joblib`; prepare those once before using that clone offline.
 
 ## Dashboard pages
 
-| Page                | Description                                                                                                    |
-| ------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Overview            | Headline metrics, pipeline diagram and a sample of the network and blockchain correlated view                  |
-| Investigate         | Drill into any transaction or wallet: risk score, reason, SHAP attribution, raw fields and neighbourhood graph |
-| Ranked Alerts       | Filterable alert table with CSV export                                                                         |
-| Entity Clusters     | Embedding scatter plot and cluster inspector                                                                   |
-| Link-Analysis Graph | Interactive network of the highest-risk transactions                                                           |
-| Model Performance   | ROC and PR curves, confusion matrix, feature importance and SHAP summary                                       |
+| Page | Purpose |
+| --- | --- |
+| Overview | Dataset summary, headline risk metrics, and transaction patterns |
+| Ingest dataset | Import and analyze local CSV, JSON, or XML files |
+| Investigate | Review a transaction or wallet with evidence and lineage |
+| Ranked alerts | Search, filter, review, and export risk-ranked findings |
+| Anomaly detection | View anomaly model metrics and feature signals |
+| Entity clusters | Inspect wallet groups and clustering metrics |
+| Graph analysis | Explore the risk network or trace observed transaction flows |
+| Model performance | Review saved model performance and feature importance |
 
-## Project structure
+## Evaluation snapshot
 
-```
-.
-├── app.py                  Streamlit dashboard
-├── src/
-│   ├── pipeline.py         Ingestion, graph, models, fusion
-│   └── build_artifacts.py  Trains models and writes the cache
-├── data/                   Synthetic dataset (see data/README.md)
-├── notebooks/              Exploratory notebook
-├── .streamlit/config.toml  Dashboard theme
-├── requirements.txt
-├── setup.sh                One-time setup (Linux)
-├── run.sh                  Launch dashboard (Linux)
-└── WRITEUP.md              Technical write-up
-```
+The included dataset is synthetic. These results describe this dataset and should not be treated as real-world performance guarantees.
 
-## Dataset
+| Task | Method | Result |
+| --- | --- | --- |
+| Entity clustering | Union-Find, SVD embeddings, and K-Means | NMI 0.70 |
+| Anomaly detection | Isolation Forest | ROC-AUC 0.77 |
+| Mixing detection | Random Forest | F1 1.00 |
+| Peeling-chain detection | Random Forest and chain walker | F1 0.52 |
+| Risk propagation | Personalized PageRank | Wallet ROC-AUC 0.53 |
+| Fused risk score | Weighted ensemble | ROC-AUC 0.75 |
 
-The dataset is fully synthetic and contains no real wallet, IP or transaction data. Field definitions and the generation method are documented in [data/README.md](data/README.md).
+Risk propagation and peeling-chain detection are weaker on the included data. The dataset has limited known-risk seed wallets, and an individual peeling hop can resemble an ordinary payment. See [WRITEUP.md](WRITEUP.md) for methodology, evaluation details, and limitations.
 
-## Limitations
+## Dataset and limitations
 
-- The dataset is synthetic. Its multi-input transactions rarely share an owner, so the common-input heuristic alone recovers little entity structure. The graph embedding recovers most of it.
+All checked-in transaction and wallet data is synthetic; it contains no real Bitcoin addresses or IP records. The project analyzes imported records and its included dataset—it does not connect to a Bitcoin node or fetch live blockchain data. Field definitions and dataset generation are described in [data/README.md](data/README.md).
+
+- Common-input ownership is only a heuristic and can be unreliable for CoinJoin or mixing transactions.
 - Graph embeddings use TruncatedSVD rather than node2vec.
-- Each transaction has a single observed broadcast, not a full peer-to-peer propagation trace.
-- About 21% of transactions are illicit, far above real-world rates.
+- Each transaction has one observed broadcast, not a full peer-to-peer propagation trace.
+- The synthetic data's illicit share is about 21%, far above real-world rates.
+- Model outputs are leads for human review, not proof of illicit activity.
+
+## Optional hosted demo
+
+The repository includes a `Dockerfile` for a hosted deployment such as Railway. A hosted copy requires internet access to open and sends uploaded data to the hosting service for processing, so it does not meet the offline/local privacy use case. Use synthetic or non-sensitive data for a public hosted demo; use the local launcher for offline analysis.
+
+## Repository layout
+
+```text
+api/main.py              FastAPI endpoints and local static frontend server
+src/pipeline.py          Dataset processing, graph construction, models, and risk fusion
+src/ingestion.py         Local CSV, JSON, and XML normalization
+src/import_analysis.py   Scoring and graph correlation for uploaded data
+src/build_artifacts.py   Generate the local model bundle
+frontend/                React + TypeScript dashboard
+data/                    Included synthetic dataset and documentation
+artifacts/               Local generated model bundle (not committed)
+run_local.ps1            Windows production launcher
+run_dev.ps1              Windows development launcher
+setup.sh / run.sh         Linux setup and launch scripts
+Dockerfile               Optional hosted deployment image
+WRITEUP.md               Technical methodology and evaluation
+```
 
 ## Acknowledgements
 
-Dataset structure is modelled on the [Elliptic++](https://github.com/git-disl/EllipticPlusPlus) transaction graph parameters.
+Dataset structure is modeled on the [Elliptic++ transaction graph](https://github.com/git-disl/EllipticPlusPlus) parameters.
