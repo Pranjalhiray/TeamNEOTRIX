@@ -7,7 +7,7 @@ RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
 
-FROM python:3.11-slim
+FROM python:3.11-slim AS python-deps
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -22,14 +22,22 @@ COPY requirements-api.txt ./
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir -r requirements-api.txt
 
-COPY api/ ./api/
+FROM python-deps AS model-build
+
 COPY src/ ./src/
 COPY data/ ./data/
-COPY --from=frontend-build /workspace/frontend/dist ./frontend/dist
 
 # The generated model bundle stays out of Git and is reproducibly built into
-# the deploy image from the versioned synthetic dataset.
+# the deploy image from the versioned synthetic dataset. This build stage keeps
+# the source CSVs out of the smaller runtime image.
 RUN python src/build_artifacts.py
+
+FROM python-deps AS runtime
+
+COPY api/ ./api/
+COPY src/ ./src/
+COPY --from=model-build /app/artifacts/bundle.joblib ./artifacts/bundle.joblib
+COPY --from=frontend-build /workspace/frontend/dist ./frontend/dist
 
 EXPOSE 10000
 CMD ["sh", "-c", "exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1"]
