@@ -20,7 +20,7 @@ import logging
 import math
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-import pipeline as pl
+import runtime_pipeline as pl
 import ingestion as local_ingestion
 import import_analysis
 

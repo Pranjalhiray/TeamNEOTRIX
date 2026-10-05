@@ -93,6 +93,28 @@ def main():
     if "best_pr" not in risk:
         risk["best_pr"] = dict(zip(risk["tx_risk"]["txid"], risk["tx_risk"]["propagated_risk"]))
 
+    # Requests use the calibrated model for imported datasets. Keep it, but
+    # discard the other evaluation-only models and retain only the two
+    # categorical reference columns needed to encode imported values.
+    anomaly.pop("models", None)
+    if "features" in anomaly:
+        anomaly["features"] = anomaly["features"][["script_type", "class"]].copy()
+
+    # These source tables and intermediate risk results are already represented
+    # by the serving tables, transaction graph, and fused predictions.
+    for key in ("features", "tx_edges", "entities"):
+        tables.pop(key, None)
+    tables["labels"] = tables["labels"][["is_illicit", "pattern_type"]].copy()
+    tables["wallets"] = tables["wallets"][["address"]].copy()
+    risk.pop("tx_risk", None)
+    risk.pop("best_pr", None)
+    risk.pop("seed_txids", None)
+
+    # SHAP only needs the transaction ID, predicted class, and structural inputs.
+    pattern["features"] = pattern["features"][
+        ["txid", "pattern_pred", *pattern["struct_cols"]]
+    ].copy()
+
     bundle = {
         "tables": tables,
         "tx_graph": tx_graph,
