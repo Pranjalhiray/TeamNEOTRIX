@@ -5,6 +5,7 @@ Developed for Smart India Hackathon 2026, Problem Statement 5 (NTRO / Cryptocurr
 
 > **Scope:** This repository is a research and demonstration prototype. Its bundled data is synthetic; it does not connect to Bitcoin Core, query a blockchain explorer, or monitor live peer-to-peer traffic. A risk score is a way to prioritize records for review, not a probability of guilt or proof of ownership.
 
+**LIVE ON RENDER** - https://teamneotrix.onrender.com
 ## What the project does
 
 The project joins transaction-flow information with synthetic network metadata, builds transaction and wallet graphs, computes pattern and anomaly signals, and presents ranked records in a browser dashboard. Analysts can inspect transaction inputs and outputs, wallet clusters, nearby graph connections, model metrics, and evidence behind an alert.
